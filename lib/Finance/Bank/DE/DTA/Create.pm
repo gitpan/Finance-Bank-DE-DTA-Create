@@ -11,7 +11,7 @@ use warnings;
 use Carp;
 use POSIX qw(strftime);
 use vars qw($VERSION);
-$VERSION = 1.00;
+$VERSION = 1.01;
 
 sub new {
 	my $that = shift;
@@ -581,14 +581,14 @@ sender must have german bank accounts)
 =head1 IMPORTANT NOTE
 
 ALWAYS doublecheck the items, after importing the DTA file into your banking software 
-prior to sending the order to your bank! You can also check you DTA-file here: 
+prior to sending the order to your bank! You can also check your DTA-file here: 
 https://www.xpecto.de/index.php?id=148,7
 
 =head1 SYNOPSIS
 
 	use Finance::Bank::DE::DTA::Create;
 	my $dta = new Finance::Bank::DE::DTA::Create({
-		type		   => 'credit', #or debit, for 'Lastschrifteinzug'
+		type           => 'credit', #or debit, for 'Lastschrifteinzug'
 		name           => $sendername,
 		bank_code      => $senderbankcode,
 		account_number => $senderaccount,
@@ -621,11 +621,11 @@ https://www.xpecto.de/index.php?id=148,7
 	print DAT $dta->getContent();
 	close DAT;
 	
-=head2 SUBROUTINES/METHODS
+=head1 SUBROUTINES / METHODS
 	
 =over
 
-=item new()
+=head2 new()
 
 The constructor. The parameters I<type>, I<name>, I<bank_code> and I<account_number> are all mandatory.
 If not set properly the module will return 0.
@@ -655,17 +655,17 @@ will be used.
 =back
 
 	my $dta = new Finance::Bank::DE::DTA::Create({
-		type		   => 'credit', #or debit, for 'Lastschrifteinzug' (collecting money)
+		type           => 'credit', #or debit, for 'Lastschrifteinzug' (collecting money)
 		name           => $sendername,
 		bank_code      => $senderbankcode,
 		account_number => $senderaccount,
 	});
 	
-=item addExchange()
+=head2 addExchange()
 
 With I<addExchange()> you add an item to the list of transactions. 
 
-The first parameter to this Method is a hash with then information of the account you are sending money 
+The first parameter to this method is a hash with the information of the account you are sending money 
 to (or collect money from). This hash has the mandatory keys I<name>, I<bank_code> (BLZ) and I<account_number>.
 
 The second parameter is the amount you are sending or collecting.
@@ -683,13 +683,13 @@ The third parameter is for the purpose of the transaction. It may either be a st
 		[ "$purpose1", "$purpose2" ] #or just $purpose
 	);
 
-=item amount()
+=head2 amount()
 
 With I<amount()> you can retrieve the total amount of all transactions, you already added.
 
-=item items()
+=head2 items()
 
-With I<items> you can retrieve the total number of transactions, you already added.
+With I<items()> you can retrieve the total number of transactions, you already added.
 
 	$dta->addExchange(
 		{
@@ -715,9 +715,9 @@ With I<items> you can retrieve the total number of transactions, you already add
 	
 	print $dta->items(); #would print 2
 	
-=item getContent()
+=head2 getContent()
 
-With I<getContent> you get the content of the dta-file.
+With I<getContent()> you get the content of the dta-file.
 
 	open(DAT, ">dta.txt") || die "$!";
 	print DAT $dta->getContent();
