@@ -1,8 +1,12 @@
 Revision history for Finance-Bank-DE-DTA-Create
 
-1.01    June, 9th 2010
-        Changes to the pod documentation
+1.02    10 Jun 2010
+        Minor changes to addExchange().
+        Changes to the pod documentation.
 
-1.00    June, 8th 2010
+1.01    09 Jun 2010
+        Changes to the pod documentation.
+
+1.00    08 Jun 2010
         First version, released on an unsuspecting world.
 

@@ -11,7 +11,7 @@ use warnings;
 use Carp;
 use POSIX qw(strftime);
 use vars qw($VERSION);
-$VERSION = 1.01;
+$VERSION = 1.02;
 
 sub new {
 	my $that = shift;
@@ -48,7 +48,7 @@ sub _initialize {
 		81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 196, 214, 220, 223
 	  )
 	{
-		$self->{validChars}{"$i"} = 1;
+		$self->{_validChars}{"$i"} = 1;
 	}
 	if ( $file->{type} && $file->{type} eq "credit" ) {
 		$self->{type} = "0";
@@ -61,14 +61,14 @@ sub _initialize {
 		carp "You did not choose the type of the DTA file.";
 		return 0;
 	}
-	if ( $file && !$self->setAccount($file) ) {
+	if ( $file && !$self->_setAccount($file) ) {
 		carp "Setting up sender account failed.";
 		return 0;    # Setup acoount file sender failed!!
 	}
 	return $self;
 }
 
-#****s*	setAccount
+#****s*	_setAccount
 #
 #	DESCRIPTION
 #		Speichern der Accountdaten des Kontoinhabers im Objekt
@@ -80,16 +80,16 @@ sub _initialize {
 #		Objekt im Erfolgsfall, 0 wenn Fehlgeschlagen
 #
 #******************************************************************************
-sub setAccount {
+sub _setAccount {
 	my $self = shift;
 	my $file = shift;
 
 	if ( $file && length( $file->{name} ) > 0 ) {
-		if ( !$self->validNumeric( $file->{bank_code} ) ) {
+		if ( !$self->_validNumeric( $file->{bank_code} ) ) {
 			carp "Please provide a valid sender BLZ.";
 			return 0;    # Fehlerhafte Bankleitzahl
 		}
-		if ( !$self->validNumeric( $file->{account_number} ) ) {
+		if ( !$self->_validNumeric( $file->{account_number} ) ) {
 			carp "Please provide a valid sender account-number.";
 			return 0;    # Fehlerhafte Kontonummer
 		}
@@ -97,10 +97,10 @@ sub setAccount {
 			$file->{additional_name} = '';    # additional_name setzen, wenn nicht angegeben
 		}
 		$self->{account} = {
-			"name"            => substr( $self->makeValidString( $file->{name} ),            0, 27 ),
+			"name"            => substr( $self->_makeValidString( $file->{name} ),            0, 27 ),
 			"bank_code"       => $file->{bank_code},
 			"account_number"  => $file->{account_number},
-			"additional_name" => substr( $self->makeValidString( $file->{additional_name} ), 0, 27 )
+			"additional_name" => substr( $self->_makeValidString( $file->{additional_name} ), 0, 27 )
 		};
 		return $self;
 	}
@@ -156,23 +156,27 @@ sub addExchange {
 			carp "Please provide a valid $account name.";
 			return 0;
 		}
-		$exchange->{$account}{name} = substr( $self->makeValidString( $exchange->{$account}{name} ), 0, 27 );
+		$exchange->{$account}{name} = substr( $self->_makeValidString( $exchange->{$account}{name} ), 0, 27 );
 
-		if ( !$exchange->{$account}{bank_code} || !$self->validNumeric( $exchange->{$account}{bank_code} ) ) {
+		if ( !$exchange->{$account}{bank_code} || !$self->_validNumeric( $exchange->{$account}{bank_code} ) ) {
 			carp "Please privide a valid $account bank code.";
 			return 0;
 		}
 		if (   !$exchange->{$account}{account_number}
-			|| !$self->validNumeric( $exchange->{$account}{account_number} ) )
+			|| !$self->_validNumeric( $exchange->{$account}{account_number} ) )
 		{
 			carp "Please provide a valid $account account number.";
 			return 0;
 		}
 		$exchange->{$account}{additional_name} =
-		  substr( $self->makeValidString( $exchange->{$account}{additional_name} ), 0, 27 );
+		  substr( $self->_makeValidString( $exchange->{$account}{additional_name} ), 0, 27 );
+	}
+	unless($amount){
+		carp "Please check the amount of the transaction.";
+		return 0;
 	}
 	$amount =~ s/,/\./g;
-	$exchange->{amount} = sprintf( "%.02f", $amount ) * 100;
+	$exchange->{amount} = sprintf( "%.02f", $amount ) * 100;# if $amount && $amount > 0;
 
 	if ( !ref($purposes) ) {
 		$purposes = [ $purposes, '' ];
@@ -180,13 +184,13 @@ sub addExchange {
 	my $length = @$purposes;
 	for ( my $i = 0 ; $i < $length ; ++$i ) {
 		if ( $purposes->[$i] ) {
-			$purposes->[$i] = substr( $self->makeValidString( $purposes->[$i] ), 0, 27 );
+			$purposes->[$i] = substr( $self->_makeValidString( $purposes->[$i] ), 0, 27 );
 		}
 	}
 	$exchange->{purposes} = $purposes;
 
 	push( @{ $self->{exchanges} }, $exchange );
-	$self->{amount} += $amount;
+	$self->{amount} += $amount if $amount && $amount > 0;
 	$self->{items}++;
 
 	return $self;
@@ -461,7 +465,7 @@ sub getContent {
 	return $self->{text} = $text;
 }
 
-#****s*	validChar
+#****s*	_validChar
 #
 #	DESCRIPTION
 #		überprüfen auf gültiges DTAUS Zeichen
@@ -473,14 +477,14 @@ sub getContent {
 #		1 wenn gültig, 'undef' wenn ungültig
 #
 #******************************************************************************
-sub validChar {
+sub _validChar {
 	my $self = shift;
 	my $char = ord(shift);
 
-	return $self->{validChars}{"$char"};
+	return $self->{_validChars}{"$char"};
 }
 
-#****s*	validString
+#****s*	_validString
 #
 #	DESCRIPTION
 #		Überprüfen auf gültige DTAUS Zeichen im String.
@@ -492,19 +496,19 @@ sub validChar {
 #		1 wenn gültig, 0 wenn ungültig
 #
 #******************************************************************************
-sub validString {
+sub _validString {
 	my $char;
 	my $self   = shift;
 	my $string = shift;
 	foreach $char ( split //, $string ) {
-		if ( !$self->validChar($char) ) {
+		if ( !$self->_validChar($char) ) {
 			return 0;
 		}
 	}
 	return 1;
 }
 
-#****s*	validNumeric
+#****s*	_validNumeric
 #
 #	DESCRIPTION
 #		Überprüfen ob gültige Zahl.
@@ -516,14 +520,14 @@ sub validString {
 #		1 wenn gültig, 0 wenn ungültig
 #
 #******************************************************************************
-sub validNumeric {
+sub _validNumeric {
 	my $self   = shift;
 	my $string = shift;
 
 	return ( $string =~ m/^[0-9]+$/ ) ? 1 : 0;
 }
 
-#****s*	makeValidString
+#****s*	_makeValidString
 #
 #	DESCRIPTION
 #		Umwandeln oder entfernen ungültiger Zeichen.
@@ -535,7 +539,7 @@ sub validNumeric {
 #		Umgewandelte Zeichenkette
 #
 #******************************************************************************
-sub makeValidString {
+sub _makeValidString {
 	my $char;
 	my $self   = shift;
 	my $string = shift;
@@ -551,7 +555,7 @@ sub makeValidString {
 	$string = uc($string);
 
 	foreach $char ( split //, $string ) {
-		$result .= ( $self->validChar($char) ) ? $char : ' ';
+		$result .= ( $self->_validChar($char) ) ? $char : ' ';
 	}
 
 	return $result;
@@ -623,8 +627,6 @@ https://www.xpecto.de/index.php?id=148,7
 	
 =head1 SUBROUTINES / METHODS
 	
-=over
-
 =head2 new()
 
 The constructor. The parameters I<type>, I<name>, I<bank_code> and I<account_number> are all mandatory.
@@ -667,8 +669,9 @@ With I<addExchange()> you add an item to the list of transactions.
 
 The first parameter to this method is a hash with the information of the account you are sending money 
 to (or collect money from). This hash has the mandatory keys I<name>, I<bank_code> (BLZ) and I<account_number>.
+If they are not set properly function returns 0.
 
-The second parameter is the amount you are sending or collecting.
+The second parameter is the amount you are sending or collecting. If amount is not > 0 function returns 0.
 
 The third parameter is for the purpose of the transaction. It may either be a string for just one purpose 
 (one line), or an array with two purpose strings (two lines). 
@@ -723,8 +726,6 @@ With I<getContent()> you get the content of the dta-file.
 	print DAT $dta->getContent();
 	close DAT;
 	
-=back
-
 =head1 BUGS
 
 I am aware of no bugs - if you find one, please let me know, preferably you already have a
