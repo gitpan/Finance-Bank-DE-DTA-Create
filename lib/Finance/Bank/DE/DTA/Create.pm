@@ -1,5 +1,6 @@
 ###############################################################################
 package Finance::Bank::DE::DTA::Create;
+#
 ###############################################################################
 # Dta class provides functions to create and handle with DTA files
 # used in Germany to exchange informations about money transactions with
@@ -10,15 +11,18 @@ use strict;
 use warnings;
 use Carp;
 use POSIX qw(strftime);
+use Time::Local;
 use vars qw($VERSION);
-$VERSION = 1.02;
+$VERSION = 1.03;
 
 sub new {
 	my $that = shift;
 	$that = ref($that) || $that;
 	my $self = {
-		items  => 0,
-		amount => 0,
+		items          => 0,
+		amount         => 0,
+		sum_accounts   => 0,
+		sum_bank_codes => 0,
 	};
 
 	bless $self, $that;
@@ -116,8 +120,11 @@ sub _setAccount {
 #		Hinzufügen eines Bankauftrags
 #
 #	PARAMETER
-#		%receiver		Empfänger bei Gutschrift, bzw. Lastschrift (Einzug von)
-#		$amount			Höhe der Zahlung in Euro z.B. 100.50
+#		%receiver		Empfänger bei Gutschrift, 
+#                                       bzw. Lastschrift (Einzug von)
+#
+#		$amount			Betrag der Zahlung in Euro z.B. 100.50 
+#
 #		$purposes		Verwendungszweck: Einfacher String oder List mit zwei Strings
 #		%sender			optional: Accountdaten des Kontoinhabers
 #
@@ -192,6 +199,8 @@ sub addExchange {
 	push( @{ $self->{exchanges} }, $exchange );
 	$self->{amount} += $amount if $amount && $amount > 0;
 	$self->{items}++;
+	$self->{sum_accounts}   += $exchange->{receiver}{account_number};
+	$self->{sum_bank_codes} += $exchange->{receiver}{bank_code};
 
 	return $self;
 }
@@ -202,7 +211,8 @@ sub addExchange {
 #		Abruf der DTAUS Daten. Formatieren einer DTAUS0.txt Datensequenz.
 #
 #	PARAMETER
-#		Keine Parameter, alle Transfers zuvor mit addExchange() setzen.
+#		$execday		optional: Zeitpunkt des Transfers
+#                                       Format: DD.MM.[YY]YY oder YYYY-MM-DD
 #
 #	RETURN
 #		String mit den DTAUS Daten der Transaktionen
@@ -210,6 +220,7 @@ sub addExchange {
 #******************************************************************************
 sub getContent {
 	my $self = shift;
+	my $execday = shift;
 	my $text;
 
 	my $sum_account_numbers = 0;
@@ -255,8 +266,21 @@ sub getContent {
 	# free (reserve)
 	$text .= sprintf( "% 15s", "" );
 
-	# execution date ("DDMMYYYY", optional)
-	$text .= sprintf( "% 8s", "" );
+	# execution date 
+	$execday = strftime("%d.%m.%Y", localtime( $self->{timestamp} )) 
+	    unless $execday && length($execday);
+	my @dayvec = split /\./,$execday;           # DD.MM.YYYY
+	if ($execday =~ m|-|) {
+	    @dayvec = reverse(split /-/, $execday); # YYYY-MM-DD
+	}
+	$dayvec[2] -= 1900 unless $dayvec[2] < 1900;
+	my $exectime = timelocal(0,0,12,$dayvec[0],$dayvec[1] - 1,$dayvec[2]);
+	if($exectime <= $self->{timestamp} - 12 * 60 * 60 || 
+	    $exectime > $self->{timestamp} + 365 * 24 * 60 * 60) {
+	    carp "The date you provided is not plausible. Please double check results!";
+	}
+	# set execution date ("DDMMYYYY", optional)
+	$text .= sprintf( "% 8s", strftime( "%d%m%Y", localtime($exectime) ));
 
 	# free (reserve)
 	$text .= sprintf( "% 24s", "" );
@@ -574,6 +598,16 @@ sub items {
 
 }
 
+sub sum_accounts {
+    my $self = shift;
+    return $self->{sum_accounts};
+}
+
+sub sum_bank_codes {
+    my $self = shift;
+    return $self->{sum_bank_codes};
+}
+
 __END__
 
 =head1 NAME
@@ -694,6 +728,14 @@ With I<amount()> you can retrieve the total amount of all transactions, you alre
 
 With I<items()> you can retrieve the total number of transactions, you already added.
 
+=head2 sum_accounts()
+
+With I<sum_accounts()> you can retrieve the sum of account numbers. Use for control purposes.
+
+=head2 sum_bank_codes()
+
+With I<sum_bank_codes()> you can retrieve the sum of bank_codes (BLZs). Use for control purposes.
+
 	$dta->addExchange(
 		{
 			name           => "Jane Doe",
@@ -717,13 +759,18 @@ With I<items()> you can retrieve the total number of transactions, you already a
 	print $dta->amount(); #would print 150
 	
 	print $dta->items(); #would print 2
+
+        print $dta->sum_accounts(); # would print 2222222211
+
+        print $dta->sum_bank_codes(); # would print 99999999
 	
 =head2 getContent()
 
-With I<getContent()> you get the content of the dta-file.
+With I<getContent([ExecutionDate])> you get the content of the dta-file.
+The Parameter I<ExecutionDate> is optional and gives the date of transfer. Format I<ExecutionDate> as "DD.MM.[YY]YY" or as "YYYY-MM-DD"
 
 	open(DAT, ">dta.txt") || die "$!";
-	print DAT $dta->getContent();
+	print DAT $dta->getContent(); # $dta->getContent("31.03.2017")
 	close DAT;
 	
 =head1 BUGS
@@ -735,7 +782,10 @@ solution ;)
 
 This module was mainly created by Robert Urban (http://www.webcrew.de), when we were working
 together and needed a solution to handle a lot of credits, without typing until the fingers bleed.
-I merely did some minor changes and all the CPAN-work. 
+I merely did some minor changes and all the CPAN-work.
+
+Matthias Sch�tze added the possibility to add an execution date to the dta-file and to retrieve the
+sums of the account numbers and/or bank codes, which is useful for control purposes. Thank you Matthias!
 
 =head1 AUTHOR
 
